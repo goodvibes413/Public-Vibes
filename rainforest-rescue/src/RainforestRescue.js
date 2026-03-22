@@ -892,6 +892,7 @@ export default function RainforestRescue() {
   const [gameMode, setGameMode] = useState('grammar');   // grammar | math | trivia
   const [difficulty, setDifficulty] = useState('k3');   // prek | k3 | 46
   const [currentLevel, setCurrentLevel] = useState(1);  // 1–5
+  const [isTouch, setIsTouch] = useState(false);
 
   // ─── Init game state ─────────────────────────────────────────────────────────
   const initGameState = useCallback((levelId = 1, mode = 'grammar', diff = 'k3') => {
@@ -1442,6 +1443,22 @@ export default function RainforestRescue() {
     };
   }, []);
 
+  // ─── Touch / responsive setup ─────────────────────────────────────────────
+  useEffect(() => {
+    setIsTouch('ontouchstart' in window || navigator.maxTouchPoints > 0);
+    const rescale = () => {
+      const s = Math.min(window.innerWidth / 800, window.innerHeight / 540, 1);
+      document.documentElement.style.setProperty('--game-scale', s);
+    };
+    rescale();
+    window.addEventListener('resize', rescale);
+    return () => window.removeEventListener('resize', rescale);
+  }, []);
+
+  const handleTouchKey = useCallback((key, isDown) => {
+    if (stateRef.current) stateRef.current.keys[key] = isDown;
+  }, []);
+
   // ─── Handlers ────────────────────────────────────────────────────────────────
   const handleStart = () => {
     setCurrentLevel(1);
@@ -1475,7 +1492,14 @@ export default function RainforestRescue() {
   };
 
   // ─── Render ───────────────────────────────────────────────────────────────────
+  const mkTouch = (key) => ({
+    onTouchStart: (e) => { e.preventDefault(); handleTouchKey(key, true); },
+    onTouchEnd:   (e) => { e.preventDefault(); handleTouchKey(key, false); },
+    onTouchCancel:(e) => { handleTouchKey(key, false); },
+  });
+
   return (
+    <>
     <div className="game-container">
       <canvas
         ref={canvasRef}
@@ -1512,11 +1536,20 @@ export default function RainforestRescue() {
           </div>
         </div>
 
-        <div style={{ color: '#666', fontSize: 10, marginLeft: 8 }}>
-          <div>ARROWS — Move</div>
-          <div>SPACE — Drop Water</div>
-          <div>D — Drop Obstacle</div>
-        </div>
+        {!isTouch && (
+          <div style={{ color: '#666', fontSize: 10, marginLeft: 8 }}>
+            <div>ARROWS — Move</div>
+            <div>SPACE — Drop Water</div>
+            <div>D — Drop Obstacle</div>
+          </div>
+        )}
+        {isTouch && (
+          <div style={{ color: '#666', fontSize: 10, marginLeft: 8 }}>
+            <div>D-pad — Fly</div>
+            <div>💧 — Drop Water</div>
+            <div>🪨 — Drop Obstacle</div>
+          </div>
+        )}
 
         <div className="score-block">
           <div className="score-item">
@@ -1633,7 +1666,10 @@ export default function RainforestRescue() {
           </div>
 
           <div className="start-controls">
-            Arrow Keys — Fly &nbsp;|&nbsp; Space — Drop Water &nbsp;|&nbsp; D — Drop Obstacle<br />
+            {isTouch
+              ? <>D-pad — Fly &nbsp;|&nbsp; 💧 — Drop Water &nbsp;|&nbsp; 🪨 — Drop Obstacle<br /></>
+              : <>Arrow Keys — Fly &nbsp;|&nbsp; Space — Drop Water &nbsp;|&nbsp; D — Drop Obstacle<br /></>
+            }
             Hover near Animals to Rescue &nbsp;|&nbsp; Answer Questions to Refuel
           </div>
           <button className="start-btn" onClick={handleStart}>
@@ -1690,5 +1726,22 @@ export default function RainforestRescue() {
         </div>
       )}
     </div>
+
+    {/* Touch Gamepad — rendered outside the scaled container so buttons stay native size */}
+    {isTouch && gamePhase === 'playing' && (
+      <div className="touch-gamepad">
+        <div className="touch-dpad">
+          <button className="touch-btn dpad-up"    {...mkTouch('ArrowUp')}>↑</button>
+          <button className="touch-btn dpad-left"  {...mkTouch('ArrowLeft')}>←</button>
+          <button className="touch-btn dpad-right" {...mkTouch('ArrowRight')}>→</button>
+          <button className="touch-btn dpad-down"  {...mkTouch('ArrowDown')}>↓</button>
+        </div>
+        <div className="touch-actions">
+          <button className="touch-btn touch-btn-water" {...mkTouch(' ')}>💧</button>
+          <button className="touch-btn touch-btn-block" {...mkTouch('d')}>🪨</button>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
